@@ -39,17 +39,70 @@ solution MC(matrix(*ff)(matrix, matrix, matrix), int N, matrix lb, matrix ub, do
 
 double* expansion(matrix(*ff)(matrix, matrix, matrix), double x0, double d, double alpha, int Nmax, matrix ud1, matrix ud2)
 {
-	try
-	{
-		double* p = new double[2] { 0, 0 };
-		//Tu wpisz kod funkcji
+    try
+    {
+        auto make_interval = [](double left, double right)
+        {
+            double* interval = new double[2];
+            interval[0] = left;
+            interval[1] = right;
+            return interval;
+        };
 
-		return p;
-	}
-	catch (string ex_info)
-	{
-		throw ("double* expansion(...):\n" + ex_info);
-	}
+        auto eval = [&](double x_val) -> double
+        {
+            solution tmp;
+            tmp.x = matrix(1, 1);
+            tmp.x(0) = x_val;
+            tmp.fit_fun(ff, ud1, ud2);
+            if (solution::f_calls > Nmax)
+                throw std::string("Nmax exceeded in expansion");
+            return m2d(tmp.y);
+        };
+
+        double fx0 = eval(x0);
+        double x1 = x0 + d;
+        double fx1 = eval(x1);
+
+        if (fx1 == fx0)
+            return make_interval(x0, x1);
+
+        if (fx1 > fx0)
+        {
+            d = -d;
+            x1 = x0 + d;
+            fx1 = eval(x1);
+            if (fx1 >= fx0)
+                return make_interval(x1, x0 - d);
+        }
+
+        double x_prev = x0;
+        double x_curr = x1;
+        double f_curr = fx1;
+        double alpha_pow = 1.0;
+
+        while (true)
+        {
+            alpha_pow *= alpha;
+            double x_next = x0 + alpha_pow * d;
+            double f_next = eval(x_next);
+
+            if (f_curr <= f_next)
+            {
+                if (d > 0)
+                    return make_interval(x_prev, x_next);
+                return make_interval(x_next, x_prev);
+            }
+
+            x_prev = x_curr;
+            x_curr = x_next;
+            f_curr = f_next;
+        }
+    }
+    catch (string ex_info)
+    {
+        throw ("double* expansion(...):\n" + ex_info);
+    }
 }
 
 solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double epsilon, matrix ud1, matrix ud2)
@@ -72,9 +125,88 @@ solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 {
 	try
 	{
+		double* interval;
+		interval = expansion(ff, 100, 1, 1.05, 1000, NAN, NAN);
 		solution Xopt;
-		//Tu wpisz kod funkcji
+		solution::clear_calls();
+		
+		double aa[3], bb[3], cc[3], dd[3];
+		int i = 1;
+		aa[i] = interval[0];
+		bb[i] = interval[1];
+		cc[i] = fabs(interval[1] + interval[0]) / 2;
 
+		do {
+			Xopt.x = aa[i];
+			Xopt.fit_fun(ff, ud1, ud2);
+			double l_f_a = m2d(Xopt.y);
+
+			Xopt.x = bb[i];
+			Xopt.fit_fun(ff, ud1, ud2);
+			double l_f_b = m2d(Xopt.y);
+			
+			Xopt.x = cc[i];
+			Xopt.fit_fun(ff, ud1, ud2);
+			double l_f_c = m2d(Xopt.y);
+
+			double l = l_f_a * (pow(bb[i], 2) - pow(cc[i], 2)) + l_f_b * (pow(cc[i], 2) - pow(aa[i], 2)) + l_f_c * (pow(aa[i], 2) - pow(bb[i], 2));
+
+			double m = l_f_a * (bb[i] - cc[i]) + l_f_b * (cc[i] - aa[i]) + l_f_c * (aa[i] - bb[i]);
+			if (m <= 0) {
+				throw std::string("M <= 0");
+			}
+			
+			dd[i] = 0.5 * l / m;
+
+			Xopt.x = dd[i];
+			Xopt.fit_fun(ff, ud1, ud2);
+			double l_f_d = m2d(Xopt.y);
+
+			if ((aa[i] < dd[i]) && (dd[i] < cc[i])) {
+				if (l_f_d < l_f_c) {
+					aa[i + 1] = aa[i];
+					cc[i + 1] = dd[i];
+					bb[i + 1] = cc[i];
+				} else {
+					aa[i + 1] = dd[i];
+					cc[i + 1] = cc[i];
+					bb[i + 1] = bb[i];
+				}
+			} else {
+				if ((cc[i] < dd[i]) && (dd[i] < bb[i])) {
+					if (l_f_d < l_f_c) {
+						aa[i + 1] = cc[i];
+						cc[i + 1] = dd[i];
+						bb[i + 1] = bb[i];
+					} else {
+						aa[i + 1] = aa[i];
+						cc[i + 1] = cc[i];
+						bb[i + 1] = dd[i];
+					}
+				} else {
+					throw std::string("Error 4321");
+				}
+			}
+			
+			aa[i - 1] = aa[i];
+			bb[i - 1] = bb[i];
+			cc[i - 1] = cc[i];
+			dd[i - 1] = dd[i];
+						
+			aa[i] = aa[i + 1];
+			bb[i] = bb[i + 1];
+			cc[i] = cc[i + 1];
+			dd[i] = dd[i + 1];
+
+			if (solution::f_calls > Nmax) {
+				throw std::string("Too many interations");
+			}
+
+		} while (bb[i] - aa[i] > epsilon && abs(dd[i] - dd[i - 1]) > gamma);
+
+		std::cout << "Wynik: " << dd[i - 1];
+		// std::cout << "Test - x: " << Xopt.x << " y: " << Xopt.y << "\n";
+		
 		return Xopt;
 	}
 	catch (string ex_info)
