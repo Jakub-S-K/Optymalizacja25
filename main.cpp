@@ -71,10 +71,11 @@ void lab1()
 	double epsilon = 1e-3;
 	double gamma = 1e-8;
 	
-	int N_max = 300;
+	int N_max = 1000;
 	
 	solution opt;
-	opt = lag(ff_test, -100, 70, epsilon, gamma, N_max, matrix(170.0/2), NAN);
+
+	opt = lag(ff_test, -100, 0, epsilon, gamma, N_max, NAN, NAN);
 }
 
 void lab2()

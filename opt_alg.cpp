@@ -41,63 +41,67 @@ double* expansion(matrix(*ff)(matrix, matrix, matrix), double x0, double d, doub
 {
     try
     {
-        auto make_interval = [](double left, double right)
+        double* p = new double[2] { 0, 0 };
+ 
+        int i = 0;
+        solution Xopt0 = x0;
+        solution Xopt1(x0 + d);
+ 
+        Xopt0.fit_fun(ff, ud1, ud2);
+        Xopt1.fit_fun(ff, ud1, ud2);
+ 
+        if (Xopt1.y == Xopt0.y)
         {
-            double* interval = new double[2];
-            interval[0] = left;
-            interval[1] = right;
-            return interval;
-        };
-
-        auto eval = [&](double x_val) -> double
-        {
-            solution tmp;
-            tmp.x = matrix(1, 1);
-            tmp.x(0) = x_val;
-            tmp.fit_fun(ff, ud1, ud2);
-            if (solution::f_calls > Nmax)
-                throw std::string("Nmax exceeded in expansion");
-            return m2d(tmp.y);
-        };
-
-        double fx0 = eval(x0);
-        double x1 = x0 + d;
-        double fx1 = eval(x1);
-
-        if (fx1 == fx0)
-            return make_interval(x0, x1);
-
-        if (fx1 > fx0)
+            p[0] = m2d(Xopt0.x);
+            p[1] = m2d(Xopt1.x);
+            return p;
+        }
+ 
+        if (Xopt1.y > Xopt0.y)
         {
             d = -d;
-            x1 = x0 + d;
-            fx1 = eval(x1);
-            if (fx1 >= fx0)
-                return make_interval(x1, x0 - d);
+            Xopt1.x = Xopt0.x + d;
+ 
+            Xopt1.fit_fun(ff, ud1, ud2);
+            if (Xopt1.y >= Xopt0.y)
+            {
+                p[0] = m2d(Xopt1.x);
+                p[1] = m2d(Xopt0.x - d);
+                return p;
+            }
         }
-
-        double x_prev = x0;
-        double x_curr = x1;
-        double f_curr = fx1;
-        double alpha_pow = 1.0;
-
+ 
+        solution Xopt_prev;
         while (true)
         {
-            alpha_pow *= alpha;
-            double x_next = x0 + alpha_pow * d;
-            double f_next = eval(x_next);
-
-            if (f_curr <= f_next)
+            if (solution::f_calls > Nmax)
             {
-                if (d > 0)
-                    return make_interval(x_prev, x_next);
-                return make_interval(x_next, x_prev);
+                Xopt0.flag = 0;                                 // flaga = 0 ozancza przekroczenie maksymalne liczby wywołań funkcji celu
+                break;
             }
-
-            x_prev = x_curr;
-            x_curr = x_next;
-            f_curr = f_next;
+ 
+            Xopt_prev = Xopt1;
+ 
+            i++;
+            Xopt1.x = Xopt0.x + pow(alpha, i) * d;
+            Xopt1.fit_fun(ff, ud1, ud2);
+ 
+            if (Xopt1.y > Xopt_prev.y) //na ODWROT???? NIE, DZIAŁA JEDNAK!!!!!! OSZALEJE HEHAHAHAHEHAFADOS;IFHA;SDKJ AKSDLASDF
+                break;
         }
+ 
+        if (d > 0)
+        {
+            p[0] = m2d(Xopt_prev.x);
+            p[1] = m2d(Xopt1.x);
+        }
+        else
+        {
+            p[0] = m2d(Xopt1.x);
+            p[1] = m2d(Xopt_prev.x);
+        }
+ 
+        return p;
     }
     catch (string ex_info)
     {
@@ -126,15 +130,14 @@ solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 	try
 	{
 		double* interval;
-		interval = expansion(ff, 100, 1, 1.05, 1000, NAN, NAN);
+		interval = expansion(ff, a, 5, 1.2, Nmax);
 		solution Xopt;
 		solution::clear_calls();
-		
 		double aa[3], bb[3], cc[3], dd[3];
 		int i = 1;
 		aa[i] = interval[0];
 		bb[i] = interval[1];
-		cc[i] = fabs(interval[1] + interval[0]) / 2;
+		cc[i] = (interval[1] + interval[0]) / 2;
 
 		do {
 			Xopt.x = aa[i];
