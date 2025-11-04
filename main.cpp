@@ -22,7 +22,7 @@ int main()
 {
 	try
 	{
-		lab1();
+		lab2();
 	}
 	catch (string EX_INFO)
 	{
@@ -69,18 +69,32 @@ void lab0()
 void lab1()
 {
 	double epsilon = 1e-3;
-	double gamma = 1e-8;
+	double gamma = 1e-6;
 	
 	int N_max = 1000;
 	
 	solution opt;
 
-	opt = lag(ff_test, -100, 0, epsilon, gamma, N_max, NAN, NAN);
+	// Poprawka: inicjalizacja macierzy o rozmiarze 1x1 z wartością 50.0
+	opt = lag(ff1R, 1, 100, epsilon, gamma, N_max, matrix(50.0), NAN);
+	std::cout << "x: " << opt.x << " y: " << opt.y <<  "\n";
 }
 
 void lab2()
 {
+	matrix xy_start(2, 1, 100.0);
+	
+	double step_size = 1.0;
+	double alfa = 0.8;
+	double epsilon = 1e-3;
 
+	int max_n = 1000;
+
+	solution opt;
+
+	opt = HJ(ff2T, xy_start, step_size, alfa, epsilon, max_n);
+	
+	std::cout << "X: " << opt.x(0) << " Y: " << opt.x(1) << ", f(x,y): " << opt.y << "\n";
 }
 
 void lab3()

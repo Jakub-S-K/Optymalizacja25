@@ -39,74 +39,81 @@ solution MC(matrix(*ff)(matrix, matrix, matrix), int N, matrix lb, matrix ub, do
 
 double* expansion(matrix(*ff)(matrix, matrix, matrix), double x0, double d, double alpha, int Nmax, matrix ud1, matrix ud2)
 {
-    try
-    {
-        double* p = new double[2] { 0, 0 };
- 
-        int i = 0;
-        solution Xopt0 = x0;
-        solution Xopt1(x0 + d);
- 
-        Xopt0.fit_fun(ff, ud1, ud2);
-        Xopt1.fit_fun(ff, ud1, ud2);
- 
-        if (Xopt1.y == Xopt0.y)
-        {
-            p[0] = m2d(Xopt0.x);
-            p[1] = m2d(Xopt1.x);
-            return p;
-        }
- 
-        if (Xopt1.y > Xopt0.y)
-        {
-            d = -d;
-            Xopt1.x = Xopt0.x + d;
- 
-            Xopt1.fit_fun(ff, ud1, ud2);
-            if (Xopt1.y >= Xopt0.y)
-            {
-                p[0] = m2d(Xopt1.x);
-                p[1] = m2d(Xopt0.x - d);
-                return p;
-            }
-        }
- 
-        solution Xopt_prev;
-        while (true)
-        {
-            if (solution::f_calls > Nmax)
-            {
-                Xopt0.flag = 0;                                 // flaga = 0 ozancza przekroczenie maksymalne liczby wywołań funkcji celu
-                break;
-            }
- 
-            Xopt_prev = Xopt1;
- 
-            i++;
-            Xopt1.x = Xopt0.x + pow(alpha, i) * d;
-            Xopt1.fit_fun(ff, ud1, ud2);
- 
-            if (Xopt1.y > Xopt_prev.y) //na ODWROT???? NIE, DZIAŁA JEDNAK!!!!!! OSZALEJE HEHAHAHAHEHAFADOS;IFHA;SDKJ AKSDLASDF
-                break;
-        }
- 
-        if (d > 0)
-        {
-            p[0] = m2d(Xopt_prev.x);
-            p[1] = m2d(Xopt1.x);
-        }
-        else
-        {
-            p[0] = m2d(Xopt1.x);
-            p[1] = m2d(Xopt_prev.x);
-        }
- 
-        return p;
-    }
-    catch (string ex_info)
-    {
-        throw ("double* expansion(...):\n" + ex_info);
-    }
+	try
+	{
+		double* p = new double[2]{ 0, 0 };
+
+		int i = 0;
+
+		solution X0(x0);
+		solution X1(x0 + d);
+
+		X0.fit_fun(ff, ud1, ud2);
+		X1.fit_fun(ff, ud1, ud2);
+
+		if (X1.y == X0.y)
+		{
+			p[0] = X0.x(0);
+			p[1] = X1.x(0);
+			return p;
+		}
+
+		if (X1.y > X0.y)
+		{
+			d = -d;
+			X1.x = x0 + d;
+			X1.fit_fun(ff, ud1, ud2);
+
+			if (X1.y >= X0.y)
+			{
+				p[0] = X1.x(0);
+				p[1] = X0.x(0) - d;
+				return p;
+			}
+		}
+
+		solution Xi_prev = X0;
+		solution Xi = X1;
+		solution Xi_next;
+
+		do
+		{
+			if (solution::f_calls >= Nmax)
+			{
+				throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
+			}
+
+			i++;
+			Xi_next.x = x0 + pow(alpha, i) * d;
+			Xi_next.fit_fun(ff, ud1, ud2);
+
+			if (Xi.y <= Xi_next.y)
+			{
+				break;
+			}
+
+			Xi_prev = Xi;
+			Xi = Xi_next;
+
+		} while (true);
+
+		if (d > 0)
+		{
+			p[0] = Xi_prev.x(0);
+			p[1] = Xi_next.x(0);
+		}
+		else
+		{
+			p[0] = Xi_next.x(0);
+			p[1] = Xi_prev.x(0);
+		}
+
+		return p;
+	}
+	catch (string ex_info)
+	{
+		throw ("double* expansion(...):\n" + ex_info);
+	}
 }
 
 solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double epsilon, matrix ud1, matrix ud2)
@@ -127,104 +134,126 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 
 solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double epsilon, double gamma, int Nmax, matrix ud1, matrix ud2)
 {
-	try
-	{
-		double* interval;
-		interval = expansion(ff, a, 5, 1.2, Nmax);
-		solution Xopt;
-		solution::clear_calls();
-		double aa[3], bb[3], cc[3], dd[3];
-		int i = 1;
-		aa[i] = interval[0];
-		bb[i] = interval[1];
-		cc[i] = (interval[1] + interval[0]) / 2;
+    try
+    {
+        double* interval = expansion(ff, a, 2, 1.01, Nmax, ud1, ud2);
+        solution Xopt;
+        solution::clear_calls();
 
-		do {
-			Xopt.x = aa[i];
-			Xopt.fit_fun(ff, ud1, ud2);
-			double l_f_a = m2d(Xopt.y);
+        double aa = interval[0];
+        double bb = interval[1];
+        double cc = (interval[1] + interval[0]) / 2;
+        double dd = 0, dd_prev = 0;
+        int iter = 0;
 
-			Xopt.x = bb[i];
-			Xopt.fit_fun(ff, ud1, ud2);
-			double l_f_b = m2d(Xopt.y);
-			
-			Xopt.x = cc[i];
-			Xopt.fit_fun(ff, ud1, ud2);
-			double l_f_c = m2d(Xopt.y);
+        do {
+            // Oblicz wartości funkcji celu
+            Xopt.x = aa; Xopt.fit_fun(ff, ud1, ud2); double f_a = m2d(Xopt.y);
+            Xopt.x = bb; Xopt.fit_fun(ff, ud1, ud2); double f_b = m2d(Xopt.y);
+            Xopt.x = cc; Xopt.fit_fun(ff, ud1, ud2); double f_c = m2d(Xopt.y);
 
-			double l = l_f_a * (pow(bb[i], 2) - pow(cc[i], 2)) + l_f_b * (pow(cc[i], 2) - pow(aa[i], 2)) + l_f_c * (pow(aa[i], 2) - pow(bb[i], 2));
+            // Interpolacja kwadratowa
+            double l = f_a * (pow(bb, 2) - pow(cc, 2)) + f_b * (pow(cc, 2) - pow(aa, 2)) + f_c * (pow(aa, 2) - pow(bb, 2));
+            double m = f_a * (bb - cc) + f_b * (cc - aa) + f_c * (aa - bb);
+            if (m <= 0) throw std::string("M <= 0");
 
-			double m = l_f_a * (bb[i] - cc[i]) + l_f_b * (cc[i] - aa[i]) + l_f_c * (aa[i] - bb[i]);
-			if (m <= 0) {
-				throw std::string("M <= 0");
-			}
-			
-			dd[i] = 0.5 * l / m;
+            dd_prev = dd;
+            dd = 0.5 * l / m;
 
-			Xopt.x = dd[i];
-			Xopt.fit_fun(ff, ud1, ud2);
-			double l_f_d = m2d(Xopt.y);
+            // Zabezpieczenie przed wyjściem poza przedział
+            if (dd < aa || dd > bb) {
+                std::cout << "aa: " << aa << ", bb: " << bb << ", cc: " << cc << ", dd: " << dd << std::endl;
+                throw std::string("dd poza przedziałem!");
+            }
 
-			if ((aa[i] < dd[i]) && (dd[i] < cc[i])) {
-				if (l_f_d < l_f_c) {
-					aa[i + 1] = aa[i];
-					cc[i + 1] = dd[i];
-					bb[i + 1] = cc[i];
-				} else {
-					aa[i + 1] = dd[i];
-					cc[i + 1] = cc[i];
-					bb[i + 1] = bb[i];
-				}
-			} else {
-				if ((cc[i] < dd[i]) && (dd[i] < bb[i])) {
-					if (l_f_d < l_f_c) {
-						aa[i + 1] = cc[i];
-						cc[i + 1] = dd[i];
-						bb[i + 1] = bb[i];
-					} else {
-						aa[i + 1] = aa[i];
-						cc[i + 1] = cc[i];
-						bb[i + 1] = dd[i];
-					}
-				} else {
-					throw std::string("Error 4321");
-				}
-			}
-			
-			aa[i - 1] = aa[i];
-			bb[i - 1] = bb[i];
-			cc[i - 1] = cc[i];
-			dd[i - 1] = dd[i];
-						
-			aa[i] = aa[i + 1];
-			bb[i] = bb[i + 1];
-			cc[i] = cc[i + 1];
-			dd[i] = dd[i + 1];
+            Xopt.x = dd; Xopt.fit_fun(ff, ud1, ud2); double f_d = m2d(Xopt.y);
 
-			if (solution::f_calls > Nmax) {
-				throw std::string("Too many interations");
-			}
+            // Warunki wyboru nowego przedziału
+            if ((aa < dd) && (dd < cc)) {
+                if (f_d < f_c) {
+                    bb = cc;
+                    cc = dd;
+                } else {
+                    aa = dd;
+                }
+            } else if ((cc < dd) && (dd < bb)) {
+                if (f_d < f_c) {
+                    aa = cc;
+                    cc = dd;
+                } else {
+                    bb = dd;
+                }
+            } else {
+                // Zabezpieczenie przed zdegenerowaniem przedziału
+                if (fabs(bb - aa) < epsilon || fabs(dd - dd_prev) < gamma) break;
+                throw std::string("Error 4321");
+            }
 
-		} while (bb[i] - aa[i] > epsilon && abs(dd[i] - dd[i - 1]) > gamma);
+            iter++;
+            if (solution::f_calls > Nmax) throw std::string("Too many iterations");
 
-		std::cout << "Wynik: " << dd[i - 1];
-		// std::cout << "Test - x: " << Xopt.x << " y: " << Xopt.y << "\n";
-		
-		return Xopt;
-	}
-	catch (string ex_info)
-	{
-		throw ("solution lag(...):\n" + ex_info);
-	}
+            // Warunek zbieżności
+            if (fabs(bb - aa) < epsilon || fabs(dd - dd_prev) < gamma) break;
+
+        } while (true);
+
+        Xopt.x = dd;
+        Xopt.fit_fun(ff, ud1, ud2);
+        return Xopt;
+    }
+    catch (string ex_info)
+    {
+        throw ("solution lag(...):\n" + ex_info);
+    }
+}
+matrix sol2mat(solution sol) {
+	matrix ret(2,1);
+	ret(0) = m2d(sol.x);
+	ret(1) = m2d(sol.y);
+	return ret;
 }
 
 solution HJ(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double alpha, double epsilon, int Nmax, matrix ud1, matrix ud2)
 {
 	try
 	{
-		solution Xopt;
-		//Tu wpisz kod funkcji
+		matrix x = x0;
+		matrix X_b_prev = x;
+		matrix X_b = x;
 
+		solution Xopt;
+		
+		double f_x, f_xb; //f(x), f(x_b)
+
+		while(s >= epsilon) {
+			X_b = x;
+			x = sol2mat(HJ_trial(ff, X_b, s)); //Convert solution.x, y to matrix (x, y), function ff takes matrix as input.
+			Xopt.x = x; Xopt.fit_fun(ff); f_x = m2d(Xopt.y);
+			Xopt.x = X_b; Xopt.fit_fun(ff); f_xb = m2d(Xopt.y);
+			if (f_x < f_xb) {
+				while (f_x < f_xb) {
+					X_b_prev = X_b;
+					X_b = x;
+					x = 2 * X_b - X_b_prev;
+					x = sol2mat(HJ_trial(ff, x, s));
+					
+					Xopt.x = x; Xopt.fit_fun(ff); f_x = m2d(Xopt.y);
+					Xopt.x = X_b; Xopt.fit_fun(ff); f_xb = m2d(Xopt.y);
+
+					if (solution::f_calls > Nmax) {
+						throw std::string("Dupas zbitas");
+					}
+				}
+				x = X_b;
+			} else {
+				s = alpha * s;
+			}
+			if (solution::f_calls > Nmax) {
+				throw std::string("Dupas zbitas 2");
+			}
+		}
+		Xopt.x = X_b;
+		Xopt.fit_fun(ff);
 		return Xopt;
 	}
 	catch (string ex_info)
@@ -233,13 +262,36 @@ solution HJ(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double alp
 	}
 }
 
-solution HJ_trial(matrix(*ff)(matrix, matrix, matrix), solution XB, double s, matrix ud1, matrix ud2)
+solution HJ_trial(matrix(*ff)(matrix, matrix, matrix), matrix XB, double s, matrix ud1, matrix ud2)
 {
 	try
 	{
-		//Tu wpisz kod funkcji
+		matrix ej = ident_mat(2); //spontanicznie przypadkowo maciez jednostkowa pasuje tutaj
 
-		return XB;
+		solution Xopt;
+		double f_x, f_forward, f_backward;
+		
+		for (int i = 0; i < 2; i++) {
+			Xopt.x = XB; 
+			Xopt.fit_fun(ff);
+			f_x = m2d(Xopt.y);
+
+			Xopt.x = XB + s * ej[i]; 
+			Xopt.fit_fun(ff);
+			 f_forward = m2d(Xopt.y);
+
+
+			Xopt.x = XB - s * ej[i]; Xopt.fit_fun(ff); f_backward = m2d(Xopt.y);
+			
+			if (f_forward < f_x) {
+				XB = XB + s*ej[i];
+			} else if (f_backward < f_x) {
+				XB = XB - s*ej[i];
+			}
+		}
+		Xopt.x = XB(0);
+		Xopt.y = XB(1);
+		return Xopt;
 	}
 	catch (string ex_info)
 	{
